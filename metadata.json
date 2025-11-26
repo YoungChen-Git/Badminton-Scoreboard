@@ -1,0 +1,5 @@
+{
+  "name": "羽球計分高手 (Badminton Pro)",
+  "description": "一款 iOS 風格的羽球計分應用程式，具備比賽計時、局數追蹤與發球權提示功能。",
+  "requestFramePermissions": []
+}

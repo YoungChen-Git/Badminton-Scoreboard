@@ -1,0 +1,16 @@
+{
+  "short_name": "羽球計分",
+  "name": "羽球計分高手",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1085/1085786.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#F2F2F7",
+  "background_color": "#F2F2F7",
+  "orientation": "portrait"
+}
