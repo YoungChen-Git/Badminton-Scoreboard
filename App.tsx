@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Timer } from './components/Timer';
 import { ScoreCard } from './components/ScoreCard';
-import { Button } from './components/Button';
-import { RotateCcw, ArrowLeftRight, Settings, History, Trophy, Share2, Palette } from 'lucide-react';
+import { RotateCcw, ArrowLeftRight, Settings, History, Crown, X, Palette, Check } from 'lucide-react';
 import { GameState, PlayerSide, PlayerConfig, SetScore } from './types';
 
 // Constants
-const TARGET_SCORE = 21;
-const MAX_SCORE = 30; // Hard cap
 const WIN_BY = 2;
 
 const INITIAL_STATE: GameState = {
@@ -17,56 +14,67 @@ const INITIAL_STATE: GameState = {
   setsB: 0,
   currentSet: 1,
   previousSets: [],
-  servingSide: 'A', // Usually determined by toss, we default to A
+  servingSide: 'A',
   matchWinner: null,
   history: []
 };
 
-// Default colors
-const DEFAULT_COLOR_A = '#FFFFFF';
-const DEFAULT_COLOR_B = '#FFFFFF';
+// Professional Default colors (High contrast)
+const DEFAULT_COLOR_A = '#3b82f6'; // Blue-500
+const DEFAULT_COLOR_B = '#ef4444'; // Red-500
 
 function App() {
   const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
   const [players, setPlayers] = useState<PlayerConfig>({ 
-    nameA: '球隊 A', 
-    nameB: '球隊 B',
+    nameA: 'HOME', 
+    nameB: 'GUEST',
     colorA: DEFAULT_COLOR_A,
     colorB: DEFAULT_COLOR_B
   });
+  
+  // Rules Config
+  const [targetScore, setTargetScore] = useState(21);
+  const [maxScore, setMaxScore] = useState(30);
+
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [swapped, setSwapped] = useState(false); // To visually swap sides on UI
+  const [swapped, setSwapped] = useState(false);
+  
+  // State to manage if the winner celebration has been dismissed by the user
+  const [celebrationDismissed, setCelebrationDismissed] = useState(false);
 
-  // Effect to stop timer on match end
+  // Stop timer on match end and reset celebration state
   useEffect(() => {
     if (gameState.matchWinner) {
       setIsTimerRunning(false);
+      setCelebrationDismissed(false); // Show celebration when a new winner is decided
     }
   }, [gameState.matchWinner]);
 
   const pushToHistory = (currentState: GameState) => {
-    // We only store essential state to restore later.
-    // Deep copy to prevent reference issues
     const historyEntry: GameState = JSON.parse(JSON.stringify({
       ...currentState,
-      history: [] // Don't nest history inside history
+      history: [] 
     }));
-
     setGameState(prev => ({
       ...prev,
       history: [...prev.history, historyEntry]
     }));
   };
 
+  const changeGameRule = (points: number) => {
+    setTargetScore(points);
+    // Common rule: Max score is usually Target + 9 (e.g. 21->30), or strict caps.
+    // For 11 points (casual), usually cap at 15. For 21, cap at 30.
+    setMaxScore(points === 11 ? 15 : 30);
+  };
+
   const handleScore = (side: PlayerSide) => {
     if (gameState.matchWinner) return;
 
-    // Push current state to history before modifying
     pushToHistory(gameState);
 
-    // Auto-start timer on first point if not running and at 00:00
     if (!isTimerRunning && timerSeconds === 0) {
       setIsTimerRunning(true);
     }
@@ -74,20 +82,18 @@ function App() {
     setGameState(prev => {
       let newScoreA = prev.scoreA;
       let newScoreB = prev.scoreB;
-      let newServingSide = side; // Winner of rally serves
+      let newServingSide = side; 
 
       if (side === 'A') newScoreA++;
       else newScoreB++;
 
-      // Check Set Win Conditions
       let setWinner: PlayerSide | null = null;
       
-      // Standard Win: >= 21 and diff >= 2
-      if ((newScoreA >= TARGET_SCORE || newScoreB >= TARGET_SCORE) && Math.abs(newScoreA - newScoreB) >= WIN_BY) {
+      // Dynamic Winning Logic based on targetScore & maxScore
+      if ((newScoreA >= targetScore || newScoreB >= targetScore) && Math.abs(newScoreA - newScoreB) >= WIN_BY) {
         setWinner = newScoreA > newScoreB ? 'A' : 'B';
       }
-      // Hard Cap Win: Reach 30
-      else if (newScoreA === MAX_SCORE || newScoreB === MAX_SCORE) {
+      else if (newScoreA === maxScore || newScoreB === maxScore) {
         setWinner = newScoreA > newScoreB ? 'A' : 'B';
       }
 
@@ -99,7 +105,6 @@ function App() {
           { scoreA: newScoreA, scoreB: newScoreB, winner: setWinner }
         ];
 
-        // Check Match Win (Best of 3)
         let matchWinner: PlayerSide | null = null;
         if (newSetsA === 2) matchWinner = 'A';
         if (newSetsB === 2) matchWinner = 'B';
@@ -116,7 +121,6 @@ function App() {
             servingSide: newServingSide
           };
         } else {
-          // Next Set
           return {
             ...prev,
             scoreA: 0,
@@ -125,7 +129,7 @@ function App() {
             setsB: newSetsB,
             currentSet: prev.currentSet + 1,
             previousSets: newPreviousSets,
-            servingSide: newServingSide // Winner of previous set/point serves? Usually previous game winner serves first in next game.
+            servingSide: newServingSide 
           };
         }
       }
@@ -139,6 +143,22 @@ function App() {
     });
   };
 
+  const handleScoreDecrement = (side: PlayerSide) => {
+    if (gameState.matchWinner) return;
+
+    // Check if score is 0, cannot decrement
+    const currentScore = side === 'A' ? gameState.scoreA : gameState.scoreB;
+    if (currentScore === 0) return;
+
+    pushToHistory(gameState);
+
+    setGameState(prev => ({
+      ...prev,
+      scoreA: side === 'A' ? prev.scoreA - 1 : prev.scoreA,
+      scoreB: side === 'B' ? prev.scoreB - 1 : prev.scoreB,
+    }));
+  };
+
   const undoLastAction = () => {
     setGameState(prev => {
       if (prev.history.length === 0) return prev;
@@ -149,18 +169,21 @@ function App() {
   };
 
   const resetMatch = () => {
-    if (confirm('確定要重新開始比賽嗎？所有紀錄將會清除。')) {
-      setGameState(INITIAL_STATE);
-      setTimerSeconds(0);
-      setIsTimerRunning(false);
-    }
+    // Custom Confirm UI is handled by a simple check state or just careful UI interaction
+    setGameState(INITIAL_STATE);
+    setTimerSeconds(0);
+    setIsTimerRunning(false);
+    setShowSettings(false);
+    setCelebrationDismissed(false);
   };
 
-  const toggleSides = () => {
-    setSwapped(!swapped);
-  };
+  // State for reset confirmation button
+  const [resetConfirm, setResetConfirm] = useState(false);
+  useEffect(() => {
+    if (!showSettings) setResetConfirm(false);
+  }, [showSettings]);
 
-  // UI Helpers
+  // Logic to determine display order based on swap state
   const leftPlayer = swapped 
     ? { id: 'B' as PlayerSide, name: players.nameB, color: players.colorB, score: gameState.scoreB, sets: gameState.setsB } 
     : { id: 'A' as PlayerSide, name: players.nameA, color: players.colorA, score: gameState.scoreA, sets: gameState.setsA };
@@ -170,73 +193,138 @@ function App() {
     : { id: 'B' as PlayerSide, name: players.nameB, color: players.colorB, score: gameState.scoreB, sets: gameState.setsB };
 
   return (
-    <div className="min-h-screen bg-ios-bg text-gray-900 font-sans pb-safe-area-bottom">
+    <div className="h-[100dvh] w-screen bg-gray-900 overflow-hidden flex flex-col landscape:flex-row relative">
       
-      {/* Header / Nav */}
-      <header className="sticky top-0 z-50 bg-ios-bg/80 backdrop-blur-md border-b border-gray-200 px-4 pt-safe-area-top pb-2">
-        <div className="flex items-center justify-between h-12 max-w-2xl mx-auto">
-          <div className="font-bold text-xl">羽球計分高手</div>
-          <button onClick={() => setShowSettings(!showSettings)} className="p-2 text-ios-blue transition-opacity hover:opacity-70">
-            <Settings size={24} />
-          </button>
-        </div>
-        
-        {/* Settings Panel Expansion */}
-        {showSettings && (
-          <div className="max-w-2xl mx-auto py-4 animate-fade-in-down">
-            <div className="bg-white rounded-xl p-4 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 mb-2 text-gray-500">
-                <Palette size={16} />
-                <h3 className="font-bold text-xs uppercase tracking-wider">球隊設定 (名稱與顏色)</h3>
-              </div>
-              
-              <div className="space-y-3">
-                {/* Team A Input */}
-                <div className="flex gap-3 items-center">
-                   <div className="relative w-10 h-10 flex-shrink-0 rounded-full overflow-hidden shadow-sm border border-gray-200">
-                    <input 
-                      type="color"
-                      value={players.colorA}
-                      onChange={(e) => setPlayers(p => ({...p, colorA: e.target.value}))}
-                      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 m-0 border-none cursor-pointer"
-                    />
-                  </div>
-                  <input 
-                    value={players.nameA} 
-                    onChange={(e) => setPlayers(p => ({...p, nameA: e.target.value}))}
-                    className="flex-1 bg-gray-100 p-2 rounded-lg border-none focus:ring-2 focus:ring-ios-blue outline-none"
-                    placeholder="球隊 A 名稱"
-                  />
-                </div>
+      {/* --- Settings Modal --- */}
+      {showSettings && (
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Settings className="w-5 h-5" /> 比賽設定
+              </h2>
+              <button onClick={() => setShowSettings(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+                <X size={20} />
+              </button>
+            </div>
 
-                {/* Team B Input */}
-                <div className="flex gap-3 items-center">
-                  <div className="relative w-10 h-10 flex-shrink-0 rounded-full overflow-hidden shadow-sm border border-gray-200">
-                    <input 
-                      type="color"
-                      value={players.colorB}
-                      onChange={(e) => setPlayers(p => ({...p, colorB: e.target.value}))}
-                      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 m-0 border-none cursor-pointer"
-                    />
-                  </div>
-                  <input 
-                    value={players.nameB} 
-                    onChange={(e) => setPlayers(p => ({...p, nameB: e.target.value}))}
-                    className="flex-1 bg-gray-100 p-2 rounded-lg border-none focus:ring-2 focus:ring-ios-blue outline-none"
-                    placeholder="球隊 B 名稱"
-                  />
+            <div className="space-y-6 flex-1">
+              {/* Game Rules */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">賽制分數</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => changeGameRule(21)}
+                    className={`
+                      py-3 rounded-xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2
+                      ${targetScore === 21 
+                        ? 'border-blue-500 bg-blue-50 text-blue-600' 
+                        : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'
+                      }
+                    `}
+                  >
+                    21 分制 (標準)
+                    {targetScore === 21 && <Check size={16} />}
+                  </button>
+                  <button 
+                    onClick={() => changeGameRule(11)}
+                    className={`
+                      py-3 rounded-xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2
+                      ${targetScore === 11 
+                        ? 'border-blue-500 bg-blue-50 text-blue-600' 
+                        : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'
+                      }
+                    `}
+                  >
+                    11 分制 (休閒)
+                    {targetScore === 11 && <Check size={16} />}
+                  </button>
                 </div>
               </div>
-              
+
+              {/* Team A */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">隊伍 1</label>
+                <div className="flex gap-3">
+                  <div className="relative w-12 h-12 flex-shrink-0 rounded-full overflow-hidden border-2 border-gray-200 shadow-inner">
+                    <input type="color" value={players.colorA} onChange={(e) => setPlayers(p => ({...p, colorA: e.target.value}))} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 m-0 cursor-pointer" />
+                  </div>
+                  <input value={players.nameA} onChange={(e) => setPlayers(p => ({...p, nameA: e.target.value}))} className="flex-1 bg-gray-50 border border-gray-200 px-4 rounded-xl font-medium focus:ring-2 focus:ring-blue-500 outline-none text-gray-800" placeholder="隊伍名稱" />
+                </div>
+              </div>
+
+              {/* Team B */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">隊伍 2</label>
+                <div className="flex gap-3">
+                  <div className="relative w-12 h-12 flex-shrink-0 rounded-full overflow-hidden border-2 border-gray-200 shadow-inner">
+                    <input type="color" value={players.colorB} onChange={(e) => setPlayers(p => ({...p, colorB: e.target.value}))} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 m-0 cursor-pointer" />
+                  </div>
+                  <input value={players.nameB} onChange={(e) => setPlayers(p => ({...p, nameB: e.target.value}))} className="flex-1 bg-gray-50 border border-gray-200 px-4 rounded-xl font-medium focus:ring-2 focus:ring-blue-500 outline-none text-gray-800" placeholder="隊伍名稱" />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100">
+                <button 
+                  onClick={() => {
+                    if (resetConfirm) {
+                      resetMatch();
+                    } else {
+                      setResetConfirm(true);
+                      setTimeout(() => setResetConfirm(false), 3000); // Reset confirmation state after 3s
+                    }
+                  }} 
+                  className={`
+                    w-full py-3 font-medium rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all
+                    ${resetConfirm 
+                      ? 'bg-red-600 text-white shadow-lg scale-105' 
+                      : 'bg-red-50 text-red-600'
+                    }
+                  `}
+                >
+                  <RotateCcw size={18} /> 
+                  {resetConfirm ? '確定要重置嗎？' : '重置比賽'}
+                </button>
+              </div>
+            </div>
+            
+            <div className="mt-6">
+              <button onClick={() => setShowSettings(false)} className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                完成
+              </button>
             </div>
           </div>
-        )}
-      </header>
+        </div>
+      )}
 
-      <main className="max-w-md mx-auto px-4 pt-4 pb-8 space-y-6">
+      {/* --- Main Game Interface --- */}
+      
+      {/* Player 1 Area */}
+      <div className="flex-1 relative overflow-hidden transition-all duration-300">
+        <ScoreCard 
+          side="left"
+          name={leftPlayer.name}
+          score={leftPlayer.score}
+          setsWon={leftPlayer.sets}
+          color={leftPlayer.color}
+          isServing={gameState.servingSide === leftPlayer.id}
+          onScoreClick={() => handleScore(leftPlayer.id)}
+          onScoreDecrement={() => handleScoreDecrement(leftPlayer.id)}
+          isWinner={gameState.matchWinner === leftPlayer.id}
+        />
+      </div>
+
+      {/* Control Strip (Center Bar) */}
+      <div className="
+        flex-shrink-0 z-20 bg-gray-800 text-white shadow-xl
+        flex flex-row landscape:flex-col
+        h-16 landscape:h-full landscape:w-20
+        items-center justify-between landscape:justify-center
+        px-4 landscape:px-0 landscape:py-4 gap-2 landscape:gap-6
+      ">
         
-        {/* Timer Section */}
-        <section className="bg-white rounded-2xl shadow-sm p-4">
+        {/* Timer */}
+        <div className="flex-1 landscape:flex-none flex justify-center">
           <Timer 
             seconds={timerSeconds} 
             isRunning={isTimerRunning} 
@@ -246,97 +334,72 @@ function App() {
               setTimerSeconds(0);
             }}
             setSeconds={setTimerSeconds}
+            compact={true}
           />
-        </section>
-
-        {/* Previous Sets History (Mini View) */}
-        {gameState.previousSets.length > 0 && (
-          <div className="flex justify-center gap-4 text-sm text-gray-500">
-            {gameState.previousSets.map((set, idx) => (
-              <div key={idx} className="bg-gray-100 px-3 py-1 rounded-full">
-                Set {idx + 1}: <span className={set.winner === 'A' ? 'font-bold text-gray-900' : ''}>{set.scoreA}</span> - <span className={set.winner === 'B' ? 'font-bold text-gray-900' : ''}>{set.scoreB}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Score Board */}
-        <section className="flex justify-between items-center -mx-2">
-           <ScoreCard 
-             side="left"
-             name={leftPlayer.name}
-             score={leftPlayer.score}
-             setsWon={leftPlayer.sets}
-             color={leftPlayer.color}
-             isServing={gameState.servingSide === leftPlayer.id}
-             onScoreClick={() => handleScore(leftPlayer.id)}
-             isWinner={gameState.matchWinner === leftPlayer.id}
-           />
-           <ScoreCard 
-             side="right"
-             name={rightPlayer.name}
-             score={rightPlayer.score}
-             setsWon={rightPlayer.sets}
-             color={rightPlayer.color}
-             isServing={gameState.servingSide === rightPlayer.id}
-             onScoreClick={() => handleScore(rightPlayer.id)}
-             isWinner={gameState.matchWinner === rightPlayer.id}
-           />
-        </section>
-
-        {/* Match Info/Status */}
-        <div className="text-center">
-            {gameState.matchWinner ? (
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full font-bold animate-pulse">
-                <Trophy size={20} />
-                {gameState.matchWinner === 'A' ? players.nameA : players.nameB} 獲勝!
-              </div>
-            ) : (
-              <div className="text-gray-400 font-medium text-sm">
-                第 {gameState.currentSet} 局
-                {gameState.scoreA === 20 && gameState.scoreB === 20 && <span className="ml-2 text-ios-red">Deuce!</span>}
-              </div>
-            )}
         </div>
 
-        {/* Controls */}
-        <section className="grid grid-cols-2 gap-4">
-          <Button 
-            variant="secondary" 
-            onClick={undoLastAction} 
+        {/* Action Buttons */}
+        <div className="flex gap-4 landscape:flex-col items-center">
+           <button 
+            onClick={undoLastAction}
             disabled={gameState.history.length === 0}
-            className="col-span-1"
+            className="p-3 rounded-full bg-gray-700 text-gray-300 disabled:opacity-30 active:bg-gray-600 transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <History size={20} />
-              <span>撤銷</span>
-            </div>
-          </Button>
+            <History size={20} />
+          </button>
 
-          <Button 
-            variant="secondary" 
-            onClick={toggleSides} 
-            className="col-span-1"
+          <button 
+            onClick={() => setSwapped(!swapped)}
+            className="p-3 rounded-full bg-gray-700 text-gray-300 active:bg-gray-600 transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <ArrowLeftRight size={20} />
-              <span>交換場地</span>
-            </div>
-          </Button>
+            <ArrowLeftRight size={20} />
+          </button>
 
-          <Button 
-            variant="destructive" 
-            onClick={resetMatch} 
-            className="col-span-2 mt-4"
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-3 rounded-full bg-gray-700 text-gray-300 active:bg-gray-600 transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <RotateCcw size={20} />
-              <span>重新開始比賽</span>
-            </div>
-          </Button>
-        </section>
+            <Settings size={20} />
+          </button>
+        </div>
+      </div>
 
-      </main>
+      {/* Player 2 Area */}
+      <div className="flex-1 relative overflow-hidden transition-all duration-300">
+        <ScoreCard 
+          side="right"
+          name={rightPlayer.name}
+          score={rightPlayer.score}
+          setsWon={rightPlayer.sets}
+          color={rightPlayer.color}
+          isServing={gameState.servingSide === rightPlayer.id}
+          onScoreClick={() => handleScore(rightPlayer.id)}
+          onScoreDecrement={() => handleScoreDecrement(rightPlayer.id)}
+          isWinner={gameState.matchWinner === rightPlayer.id}
+        />
+      </div>
+
+      {/* Match Winner Overlay */}
+      {gameState.matchWinner && !celebrationDismissed && (
+        <div 
+          onClick={() => setCelebrationDismissed(true)}
+          className="absolute inset-0 z-40 bg-black/40 backdrop-blur-[2px] cursor-pointer flex items-center justify-center animate-in fade-in duration-300"
+        >
+           <div className="bg-white/90 backdrop-blur-md px-10 py-8 rounded-[2rem] shadow-2xl flex flex-col items-center transform scale-110 animate-in zoom-in duration-300 border-4 border-yellow-400/30">
+              <Crown className="w-20 h-20 text-yellow-500 mb-4 drop-shadow-lg animate-bounce" fill="currentColor" />
+              <div className="text-4xl font-black text-gray-800 tracking-tight text-center">
+                {gameState.matchWinner === 'A' ? players.nameA : players.nameB}
+              </div>
+              <div className="text-yellow-600 font-bold uppercase tracking-[0.3em] mt-2 text-sm bg-yellow-100 px-4 py-1 rounded-full">
+                Winner
+              </div>
+              <div className="mt-6 text-xs text-gray-400 font-medium animate-pulse uppercase tracking-wider">
+                點擊任意處關閉
+              </div>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }

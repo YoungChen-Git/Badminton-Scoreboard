@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="羽球計分" />
     
-    <!-- App Icons (Using a generic badminton icon for demonstration) -->
+    <!-- App Icons -->
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1085/1085786.png" />
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/1085/1085786.png" />
     <link rel="manifest" href="manifest.json" />
@@ -24,32 +24,16 @@
               sans: [
                 '-apple-system',
                 'BlinkMacSystemFont',
+                'Inter',
                 '"Segoe UI"',
                 'Roboto',
-                '"Helvetica Neue"',
-                'Arial',
-                '"Noto Sans"',
                 'sans-serif',
-                '"Apple Color Emoji"',
-                '"Segoe UI Emoji"',
-                '"Segoe UI Symbol"',
-                '"Noto Color Emoji"',
               ],
             },
             colors: {
               ios: {
-                bg: '#F2F2F7',
-                card: '#FFFFFF',
-                blue: '#007AFF',
-                red: '#FF3B30',
-                green: '#34C759',
-                gray: '#8E8E93',
-                separator: '#C6C6C8',
+                bg: '#000000',
               }
-            },
-            spacing: {
-              'safe-area-top': 'env(safe-area-inset-top)',
-              'safe-area-bottom': 'env(safe-area-inset-bottom)',
             }
           },
         },
@@ -60,14 +44,25 @@
         -webkit-tap-highlight-color: transparent;
         -webkit-touch-callout: none;
         user-select: none;
-        background-color: #F2F2F7;
-        /* Ensure content doesn't get hidden behind notch/home bar initially */
-        min-height: 100vh;
+        background-color: #111827;
+        margin: 0;
+        padding: 0;
+        overscroll-behavior: none;
+        overflow: hidden;
       }
-      /* Hide scrollbar for cleaner mobile look */
+      /* Hide scrollbar */
       ::-webkit-scrollbar {
         width: 0px;
         background: transparent;
+      }
+      
+      /* Animation utils */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .animate-in {
+        animation: fadeIn 0.2s ease-out forwards;
       }
     </style>
   <script type="importmap">

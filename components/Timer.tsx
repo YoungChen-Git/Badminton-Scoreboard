@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Play, Pause, RotateCcw } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 
 interface TimerProps {
   seconds: number;
@@ -7,9 +7,10 @@ interface TimerProps {
   onToggle: () => void;
   onReset: () => void;
   setSeconds: React.Dispatch<React.SetStateAction<number>>;
+  compact?: boolean;
 }
 
-export const Timer: React.FC<TimerProps> = ({ seconds, isRunning, onToggle, onReset, setSeconds }) => {
+export const Timer: React.FC<TimerProps> = ({ seconds, isRunning, onToggle, setSeconds, compact }) => {
   
   useEffect(() => {
     let interval: number | undefined;
@@ -24,37 +25,28 @@ export const Timer: React.FC<TimerProps> = ({ seconds, isRunning, onToggle, onRe
   }, [isRunning, setSeconds]);
 
   const formatTime = (totalSeconds: number) => {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const minutes = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
-
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div className="flex flex-col items-center justify-center py-2">
-      <div className="text-4xl font-variant-numeric tabular-nums font-light text-gray-800 tracking-tight">
+    <button 
+      onClick={onToggle}
+      className={`
+        flex flex-col items-center justify-center transition-opacity hover:opacity-80
+        ${compact ? 'gap-1' : 'gap-2'}
+      `}
+    >
+      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider hidden landscape:block">
+        Match Time
+      </div>
+      <div className={`font-mono font-bold tabular-nums leading-none ${compact ? 'text-2xl landscape:text-xl' : 'text-4xl'}`}>
         {formatTime(seconds)}
       </div>
-      <div className="flex gap-6 mt-2">
-        <button 
-          onClick={onToggle}
-          className={`p-2 rounded-full transition-colors ${isRunning ? 'text-ios-blue bg-blue-50' : 'text-ios-green bg-green-50'}`}
-        >
-          {isRunning ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-        </button>
-        {!isRunning && seconds > 0 && (
-           <button 
-           onClick={onReset}
-           className="p-2 rounded-full text-ios-gray bg-gray-100 transition-colors"
-         >
-           <RotateCcw size={24} />
-         </button>
-        )}
+      <div className={`${isRunning ? 'text-green-400' : 'text-gray-500'}`}>
+        {isRunning ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
       </div>
-    </div>
+    </button>
   );
 };

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { Minus, ChevronDown } from 'lucide-react';
 
 interface ScoreCardProps {
   name: string;
@@ -6,31 +7,19 @@ interface ScoreCardProps {
   setsWon: number;
   isServing: boolean;
   onScoreClick: () => void;
+  onScoreDecrement: () => void;
   isWinner?: boolean;
   side: 'left' | 'right'; 
-  color: string; // New prop for background color
+  color: string;
 }
 
-// Helper to determine text color based on background brightness
 const getContrastColor = (hexcolor: string) => {
-  // If no color provided, default to black text
   if (!hexcolor) return '#000000';
-  
-  // Convert hex to RGB
   const r = parseInt(hexcolor.substring(1, 3), 16);
   const g = parseInt(hexcolor.substring(3, 5), 16);
   const b = parseInt(hexcolor.substring(5, 7), 16);
-  
-  // Calculate YIQ ratio
   const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  
-  // Return black or white text based on brightness
-  return yiq >= 128 ? '#1f2937' : '#ffffff'; // gray-900 or white
-};
-
-// Helper to get a slightly transparent version of the text color for secondary text
-const getSecondaryColor = (textColor: string) => {
-  return textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(31, 41, 55, 0.6)';
+  return yiq >= 128 ? '#111827' : '#ffffff';
 };
 
 export const ScoreCard: React.FC<ScoreCardProps> = ({ 
@@ -39,61 +28,109 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   setsWon, 
   isServing, 
   onScoreClick,
+  onScoreDecrement,
   isWinner,
   color
 }) => {
   const textColor = getContrastColor(color);
-  const secondaryColor = getSecondaryColor(textColor);
-  const borderColor = isWinner ? '#34C759' : 'transparent'; // iOS Green if winner
+  const touchStartY = useRef<number | null>(null);
+  const blockClick = useRef(false);
+  const [showMinusHint, setShowMinusHint] = React.useState(false);
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffY = touchEndY - touchStartY.current;
+
+    // Threshold for swipe down (50px)
+    if (diffY > 50) {
+      blockClick.current = true; // Prevent the click event from firing
+      onScoreDecrement();
+      setShowMinusHint(true);
+      setTimeout(() => setShowMinusHint(false), 500);
+      
+      // Reset block click after a short delay
+      setTimeout(() => { blockClick.current = false; }, 300);
+    }
+    touchStartY.current = null;
+  };
+
+  const handleClick = () => {
+    if (blockClick.current) return;
+    onScoreClick();
+  };
+  
   return (
     <div 
-      className={`relative flex flex-col items-center justify-center flex-1 h-64 mx-2 rounded-3xl shadow-sm border-4 transition-all active:scale-95 touch-manipulation cursor-pointer`}
+      className="w-full h-full flex flex-col items-center justify-center relative touch-none active:brightness-90 transition-all cursor-pointer select-none overflow-hidden group"
       style={{ 
         backgroundColor: color,
-        borderColor: borderColor,
         color: textColor
       }}
-      onClick={onScoreClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onClick={handleClick}
     >
-      {/* Service Indicator */}
-      {isServing && !isWinner && (
-        <div className="absolute top-4 right-4 animate-bounce">
-          <div className="w-4 h-4 rounded-full shadow-sm bg-orange-500 border-2 border-white"></div>
+      {/* Visual Feedback for Decrement */}
+      {showMinusHint && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/10 animate-pulse">
+           <Minus size={100} className="opacity-50" />
         </div>
       )}
 
-      {/* Sets Won Indicators */}
-      <div className="absolute top-4 left-4 flex gap-1">
-        {[0, 1].map((i) => (
-          <div 
-            key={i} 
-            className={`w-3 h-3 rounded-full border border-current`}
-            style={{ 
-              backgroundColor: i < setsWon ? 'currentColor' : 'transparent',
-              opacity: i < setsWon ? 1 : 0.3
-            }} 
-          />
-        ))}
-      </div>
+      {/* Service Indicator - Shuttlecock Icon */}
+      {isServing && !isWinner && (
+        <div className="absolute top-4 right-4 landscape:top-6 landscape:right-6 animate-bounce duration-[1500ms] z-10">
+           <div 
+             className="w-10 h-10 landscape:w-12 landscape:h-12 drop-shadow-md"
+             style={{ color: textColor }} 
+            >
+             <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+               <path d="M12 14L12 21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+               <path d="M12 14C12 14 15.5 12 15.5 9C15.5 6 14.5 2 12 2C9.5 2 8.5 6 8.5 9C8.5 12 12 14 12 14Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+               <path d="M8.5 9H15.5" stroke="currentColor" strokeWidth="1.5" />
+             </svg>
+           </div>
+        </div>
+      )}
 
-      <div className="mb-2 w-full px-4">
-        <div 
-          className="text-lg font-medium text-center break-words line-clamp-2 leading-tight"
-          style={{ color: secondaryColor }}
-        >
+      {/* Team Name */}
+      <div className="absolute top-6 left-6 right-16 text-left z-0">
+        <h2 className="text-xl landscape:text-2xl font-black uppercase tracking-wider opacity-90 truncate leading-none">
           {name}
+        </h2>
+        
+        {/* Sets Won Dots */}
+        <div className="flex gap-2 mt-2">
+          {[0, 1].map((i) => (
+            <div 
+              key={i} 
+              className={`w-3 h-3 rounded-full border-2 border-current transition-all duration-300 ${i < setsWon ? 'bg-current opacity-100' : 'bg-transparent opacity-30'}`}
+            />
+          ))}
         </div>
       </div>
 
-      <div className={`text-8xl font-bold tracking-tighter`} style={{ color: isWinner ? '#34C759' : textColor }}>
-        {score}
+      {/* Main Score - Massive */}
+      <div className="flex-1 flex items-center justify-center w-full relative mt-8 landscape:mt-0">
+        <span className="text-[42vw] landscape:text-[28vh] font-bold tabular-nums tracking-tighter leading-none drop-shadow-sm select-none">
+          {score}
+        </span>
       </div>
-      
-      <div 
-        className="mt-4 text-sm font-medium uppercase tracking-widest opacity-50"
-      >
-        點擊加分
+
+      {/* Tap Instruction */}
+      <div className="absolute bottom-6 w-full flex flex-col items-center justify-center opacity-30 pointer-events-none transition-opacity group-hover:opacity-60">
+        <div className="text-xs font-bold uppercase tracking-[0.2em] mb-1">
+          點擊加分
+        </div>
+        <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-80">
+          <ChevronDown size={14} />
+          <span>下滑扣分</span>
+        </div>
       </div>
     </div>
   );
